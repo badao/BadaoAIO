@@ -19,8 +19,25 @@ namespace BadaoAIO
     {
         public static Spell Q, Q2, W, W2, E, E2, R, R2;
         public static SpellSlot Smite, Ignite, Flash;
-        public static Items.Item Bilgewater, BotRK, Youmuu, Tiamat, Hydra;
+        public static Items.Item Bilgewater, BotRK, Youmuu, Tiamat, Hydra, Sheen, LichBane, IcebornGauntlet,TrinityForce, LudensEcho;
         public static Menu MainMenu;
+        public static bool enabled = true;
+        public static bool Enable
+        {
+            get
+            {
+                return enabled;
+            }
+
+            set
+            {
+                enabled = value;
+                if (MainMenu != null)
+                {
+                    MainMenu["Enable"].GetValue<MenuBool>().Value = value;
+                }
+            }
+        }
         public static Obj_AI_Hero Player
         {
             get { return ObjectManager.Player; }
@@ -54,6 +71,12 @@ namespace BadaoAIO
             Youmuu = new Items.Item(ItemId.Youmuus_Ghostblade, 0);
             Tiamat = new Items.Item(ItemId.Tiamat_Melee_Only, 400);
             Hydra = new Items.Item(ItemId.Ravenous_Hydra_Melee_Only, 400);
+            Sheen = new Items.Item(ItemId.Sheen,0);
+            LichBane = new Items.Item(ItemId.Lich_Bane, 0);
+            TrinityForce = new Items.Item(ItemId.Trinity_Force, 0);
+            IcebornGauntlet = new Items.Item(ItemId.Iceborn_Gauntlet, 0);
+            LudensEcho = new Items.Item(ItemId.Ludens_Echo, 0);
+
             foreach (var spell in
                 Player.Spellbook.Spells.Where(
                     i =>
@@ -66,9 +89,29 @@ namespace BadaoAIO
             Flash = Player.GetSpellSlot("summonerflash");
 
             MainMenu = new Menu("BadaoAIO", "BadaoAIO", true, Player.ChampionName);
+            AddUI.Bool(MainMenu, "Enable", Player.ChampionName + " Enable", true);
             MainMenu.Attach();
+            MainMenu.MenuValueChanged += MainMenu_MenuValueChanged;
             NewInstance(plugin);
         }
+
+        private static void MainMenu_MenuValueChanged(object sender, LeagueSharp.SDK.Core.UI.IMenu.MenuValueChangedEventArgs e)
+        {
+            var boolean = sender as MenuBool;
+            if (boolean != null)
+            {
+                if (boolean.Name.Equals("Enable"))
+                {
+                    enabled = boolean.Value;
+                    if (boolean.Value)
+                        AddUI.Notif(Player.ChampionName + ": Enabled !", 4000);
+                    else
+                        AddUI.Notif(Player.ChampionName + ": Disabled !", 4000);
+                }
+            }
+        }
+
+
         private static void NewInstance(Type type)
         {
             var target = type.GetConstructor(Type.EmptyTypes);

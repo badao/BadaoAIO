@@ -55,6 +55,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Orbwalker\Helper.cs" />
     <Compile Include="Orbwalker\Orbwalker.cs" />
     <Compile Include="Plugin\TwistedFate.cs" />
     <Compile Include="Program.cs" />

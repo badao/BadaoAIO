@@ -12,9 +12,11 @@ using LeagueSharp.SDK.Core.Events;
 using LeagueSharp.SDK.Core.Extensions;
 using LeagueSharp.SDK.Core.Extensions.SharpDX;
 using LeagueSharp.SDK.Core.UI.IMenu.Values;
+using LeagueSharp.SDK.Core.UI;
 using LeagueSharp.SDK.Core.UI.INotifications;
 using LeagueSharp.SDK.Core.Utils;
 using LeagueSharp.SDK.Core.Wrappers;
+using BadaoAIO.Orbwalker;
 using Menu = LeagueSharp.SDK.Core.UI.IMenu.Menu;
 using orbwalker = BadaoAIO.Orbwalker.Orbwalker;
 using Orb = LeagueSharp.SDK.Core.Orbwalker;
@@ -26,6 +28,7 @@ namespace BadaoAIO.Plugin
     {
         private static int cardtick, yellowtick;
         public static bool helpergold, helperblue, helperred;
+        private static bool isobvious { get { return Variables.TickCount - cardtick <= 500; } }
         private static bool IsPickingCard { get { return Player.HasBuff("pickacard_tracker"); } }
         private static bool CanUseR2 { get { return R.IsReady() && Player.HasBuff("destiny_marker"); } }
         private static bool CanUseR1 { get { return R.IsReady() && !Player.HasBuff("destiny_marker"); } }
@@ -58,7 +61,6 @@ namespace BadaoAIO.Plugin
             Q.SetSkillshot(0.25f, 40, 1000, false, SkillshotType.SkillshotLine);
             Q.DamageType = W.DamageType = E.DamageType = DamageType.Magical;
             Q.MinHitChance = HitChance.High;
-            Bool(MainMenu, "Enable", Player.ChampionName + " Enable", true).ValueChanged += TwistedFate_ValueChanged;
             Menu Combo = new Menu("Combo", "Combo");
             {
                 Bool(Combo, "Qc", "Q", true);
@@ -67,6 +69,7 @@ namespace BadaoAIO.Plugin
                 Slider(Combo, "Qhitc", "Q if will hit", 2, 1, 3);
                 Bool(Combo, "Wc", "W", true);
                 Bool(Combo, "pickgoldc", "Pick gold card while using R", true);
+                Bool(Combo, "dontpickyellow1stc", "don't pick gold at 1st turn", false);
                 MainMenu.Add(Combo);
             }
             Menu Harass = new Menu("Harass", "Harass");
@@ -108,9 +111,10 @@ namespace BadaoAIO.Plugin
             {
                 Bool(drawMenu, "Qd", "Q");
                 Bool(drawMenu, "Rd", "R");
+                Bool(drawMenu, "Hpd", "Damage Indicator");
                 MainMenu.Add(drawMenu);
             }
-
+            drawMenu.MenuValueChanged += drawMenu_MenuValueChanged;
             Game.OnUpdate += OnUpdate;
             Drawing.OnDraw += OnDraw;
             //Obj_AI_Base.OnProcessSpellCast += OnProcessSpellCast;
@@ -119,16 +123,25 @@ namespace BadaoAIO.Plugin
             InterruptableSpell.OnInterruptableTarget += InterruptableSpell_OnInterruptableTarget;
             Drawing.OnEndScene += Drawing_OnEndScene;
             Orb.OnAction += Orbwalker_OnAction;
+            DamageIndicator.DamageToUnit = TwistedFateDamage;
+            CustomDamageIndicator.Initialize(TwistedFateDamage);
+            DamageIndicator.Enabled = drawhp;
+            CustomDamageIndicator.Enabled = drawhp;
         }
 
-        private void TwistedFate_ValueChanged(object sender, EventArgs e)
+        private void drawMenu_MenuValueChanged(object sender, LeagueSharp.SDK.Core.UI.IMenu.MenuValueChangedEventArgs e)
         {
-            if (Enable)
-                AddUI.Notif(Player.ChampionName + ": Enabled !",4000);
-            else
-                AddUI.Notif(Player.ChampionName + ": Disabled !",4000);
+            if (!Enable) return;
+            var boolean = sender as MenuBool;
+            if (boolean != null)
+            {
+                if (boolean.Name.Equals("Hpd"))
+                {
+                    DamageIndicator.Enabled = boolean.Value;
+                    CustomDamageIndicator.Enabled = boolean.Value;
+                }
+            }
         }
-
 
         private void InterruptableSpell_OnInterruptableTarget(object sender, InterruptableSpell.InterruptableTargetEventArgs e)
         {
@@ -155,8 +168,7 @@ namespace BadaoAIO.Plugin
                 }
             }
         }
-
-        private static bool Enable { get {return MainMenu["Enable"].GetValue<MenuBool>().Value;}}
+        private static bool dontbeobvious { get { return MainMenu["Combo"]["dontpickyellow1stc"].GetValue<MenuBool>().Value; } }
         private static bool comboq { get { return MainMenu["Combo"]["Qc"].GetValue<MenuBool>().Value; } }
         private static bool comboqafterattack { get { return MainMenu["Combo"]["Qafterattackc"].GetValue<MenuBool>().Value; } }
         private static bool comboqimmobile { get { return MainMenu["Combo"]["Qimmobilec"].GetValue<MenuBool>().Value; } }
@@ -196,11 +208,13 @@ namespace BadaoAIO.Plugin
             } }
         private static bool drawq { get { return MainMenu["Draw"]["Qd"].GetValue<MenuBool>().Value; } }
         private static bool drawr { get { return MainMenu["Draw"]["Rd"].GetValue<MenuBool>().Value; } }
+        private static bool drawhp { get { return MainMenu["Draw"]["Hpd"].GetValue<MenuBool>().Value; } }
         private static void AutoHelper()
         {
             if (autokillsteal && Q.IsReady())
             {
-                foreach (var x  in GameObjects.Heroes.Where(x => x.IsValidTarget(Q.Range) && Player.GetSpellDamage(x,SpellSlot.Q) > x.Health))
+                foreach (var x  in GameObjects.Heroes.Where(x => x.IsValidTarget(Q.Range) && Player.CalculateDamage(x, DamageType.Magical, new double[] { 60, 110, 160, 210, 260 }[Q.Level - 1]
+                                   + 0.65 * Player.FlatMagicDamageMod) > x.Health))
                 {
                     Q.Cast(x);
                 }
@@ -225,6 +239,16 @@ namespace BadaoAIO.Plugin
                     helperpickblue = false;
                 if (HasRed)
                     helperpickred = false;
+            }
+            if (combow && Player.HasBuff("destiny_marker") && combopickgold && W.IsReady())
+            {
+                if (!IsPickingCard && PickACard && Variables.TickCount - cardtick >= 500)
+                {
+                    cardtick = Variables.TickCount;
+                    W.Cast();
+                }
+                if (IsPickingCard && GoldCard)
+                    W.Cast();
             }
         }
         private void Drawing_OnEndScene(EventArgs args)
@@ -311,9 +335,11 @@ namespace BadaoAIO.Plugin
         private void OnUpdate(EventArgs args)
         {
             if (!Enable)
+            {
+                DamageIndicator.Enabled = false;
+                CustomDamageIndicator.Enabled = false;
                 return;
-            //checkbuff();
-            //Game.PrintChat(HasACard);
+            }
             AutoHelper();
             if (Orb.ActiveMode == OrbwalkerMode.Orbwalk)
                 Combo();
@@ -337,16 +363,6 @@ namespace BadaoAIO.Plugin
                         Q.CastIfWillHit(target, comboqhit);
                 }
             }
-            if (combow && Player.HasBuff("destiny_marker") && combopickgold && W.IsReady())
-            {
-                if (!IsPickingCard && PickACard && Variables.TickCount - cardtick >= 500)
-                {
-                    cardtick = Variables.TickCount;
-                    W.Cast();
-                }
-                if (IsPickingCard && GoldCard)
-                    W.Cast();
-            }
             if (combow && W.IsReady())
             {
                 var target = TargetSelector.GetTarget(900, DamageType.Magical);
@@ -361,12 +377,12 @@ namespace BadaoAIO.Plugin
                     {
                         if (Player.Mana >= Q.Instance.ManaCost )
                         {
-                            if (GoldCard)
+                            if (GoldCard && !(dontbeobvious && isobvious))
                             W.Cast();
                         }
                         else if (GameObjects.AllyHeroes.Where(x => x.IsValidTarget(800,false)).Any())
                         {
-                            if (GoldCard)
+                            if (GoldCard && !(dontbeobvious && isobvious))
                                 W.Cast();
                         }
                         else if (BlueCard)
@@ -466,6 +482,60 @@ namespace BadaoAIO.Plugin
                     }
                 }
             }
+        }
+        private static float TwistedFateDamage(Obj_AI_Hero target)
+        {
+            var Qdamage = (float)Player.CalculateDamage(target,DamageType.Magical, new double[] { 60, 110, 160, 210, 260 }[Q.Level-1]
+                                    + 0.65 * Player.FlatMagicDamageMod);
+            var Wdamage = (float)Player.CalculateDamage(target, DamageType.Magical, new double[] { 40, 60, 80, 100, 120 }[W.Level - 1]
+                                    + 1 * (Player.BaseAttackDamage + Player.FlatPhysicalDamageMod)
+                                    + 0.5 * Player.FlatMagicDamageMod);
+            float x = 0;
+            if ((W.IsReady() || HasACard != "none") && Q.IsReady())
+            {
+                if((Player.Mana >= Q.Instance.ManaCost + W.Instance.ManaCost) || (Player.Mana >= Q.Instance.ManaCost && HasACard != "none"))
+                {
+                    x = x + Qdamage + Wdamage;
+                }
+                else if (Player.Mana >= Q.Instance.ManaCost)
+                {
+                    x = x + Qdamage;
+                }
+                else if (Player.Mana >= W.Instance.ManaCost || HasACard != "none")
+                {
+                    x = x + Wdamage;
+                }
+            }
+            else if (Q.IsReady())
+            {
+                x = x + Qdamage;
+            }
+            else if (W.IsReady() ||  HasACard != "none")
+            {
+                x = x + Wdamage;
+            }
+            if (LichBane.IsReady)
+            {
+                x = x + (float)Player.CalculateDamage(target,DamageType.Magical, 0.75 * Player.BaseAttackDamage + 0.5 * Player.FlatMagicDamageMod);
+            }
+            else if (TrinityForce.IsReady)
+            {
+                x = x + (float)Player.CalculateDamage(target, DamageType.Magical, 2 * Player.BaseAttackDamage);
+            }
+            else if (IcebornGauntlet.IsReady)
+            {
+                x = x + (float)Player.CalculateDamage(target, DamageType.Magical, 1.25 * Player.BaseAttackDamage);
+            }
+            else if (Sheen.IsReady)
+            {
+                x = x + (float)Player.CalculateDamage(target, DamageType.Magical, 1 * Player.BaseAttackDamage);
+            }
+            if (LudensEcho.IsReady)
+            {
+                x = x + (float)Player.CalculateDamage(target, DamageType.Magical, 100 + 0.1 * Player.FlatMagicDamageMod);
+            }
+            x = x + (float)Player.GetAutoAttackDamage(target, true);
+            return x;
         }
         private static void checkbuff()
         {
