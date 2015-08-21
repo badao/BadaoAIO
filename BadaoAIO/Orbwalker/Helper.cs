@@ -21,6 +21,25 @@ using Color = System.Drawing.Color;
 
 namespace BadaoAIO.Orbwalker
 {
+    public static class Geometry
+    {
+        public static float Distance(this Vector2 point,
+            Vector2 segmentStart,
+            Vector2 segmentEnd,
+            bool onlyIfOnSegment = false,
+            bool squared = false)
+        {
+            var objects = point.ProjectOn(segmentStart, segmentEnd);
+
+            if (objects.IsOnSegment || onlyIfOnSegment == false)
+            {
+                return squared
+                    ? Vector2.DistanceSquared(objects.SegmentPoint, point)
+                    : Vector2.Distance(objects.SegmentPoint, point);
+            }
+            return float.MaxValue;
+        }
+    }
     public static class Helper
     {
 

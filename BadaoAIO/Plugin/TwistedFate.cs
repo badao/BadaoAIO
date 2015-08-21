@@ -213,8 +213,14 @@ namespace BadaoAIO.Plugin
         {
             if (autokillsteal && Q.IsReady())
             {
-                foreach (var x  in GameObjects.Heroes.Where(x => x.IsValidTarget(Q.Range) && Player.CalculateDamage(x, DamageType.Magical, new double[] { 60, 110, 160, 210, 260 }[Q.Level - 1]
-                                   + 0.65 * Player.FlatMagicDamageMod) > x.Health))
+                foreach (
+                    var x  in
+                        GameObjects.Heroes.Where(
+                            x =>
+                                x.IsValidTarget(Q.Range) &&
+                                Player.CalculateDamage(x, DamageType.Magical,
+                                    new double[] {60, 110, 160, 210, 260}[Q.Level - 1]
+                                    + 0.65*Player.FlatMagicDamageMod) > x.Health))
                 {
                     Q.Cast(x);
                 }
@@ -316,11 +322,11 @@ namespace BadaoAIO.Plugin
                     IDictionary<Obj_AI_Minion, int> creeps = new Dictionary<Obj_AI_Minion, int>();
                     foreach (var x in GameObjects.EnemyMinions.Where(x => x.InAutoAttackRange()))
                     {
-                        creeps.Add(x, GameObjects.EnemyMinions.Where(y => y.IsValidTarget() && y.Distance(x.Position) <= 300).Count());
+                        creeps.Add(x, GameObjects.EnemyMinions.Count(y => y.IsValidTarget() && y.Distance(x.Position) <= 300));
                     }
                     foreach (var x in GameObjects.Jungle.Where(x => x.InAutoAttackRange()))
                     {
-                        creeps.Add(x, GameObjects.Jungle.Where(y => y.IsValidTarget() && y.Distance(x.Position) <= 300).Count());
+                        creeps.Add(x, GameObjects.Jungle.Count(y => y.IsValidTarget() && y.Distance(x.Position) <= 300));
                     }
                     var minion = creeps.OrderByDescending(x => x.Value).FirstOrDefault();
                     Player.IssueOrder(GameObjectOrder.AttackUnit, minion.Key);
@@ -380,7 +386,7 @@ namespace BadaoAIO.Plugin
                             if (GoldCard && !(dontbeobvious && isobvious))
                             W.Cast();
                         }
-                        else if (GameObjects.AllyHeroes.Where(x => x.IsValidTarget(800,false)).Any())
+                        else if (GameObjects.AllyHeroes.Any(x => x.IsValidTarget(800,false)))
                         {
                             if (GoldCard && !(dontbeobvious && isobvious))
                                 W.Cast();
@@ -443,7 +449,10 @@ namespace BadaoAIO.Plugin
             if (Q.IsReady() && clearq && Player.ManaPercent >= clearmana)
             {
                 var farm = Q.GetLineFarmLocation(Minion.GetMinionsPredictedPositions(ObjectManager.Get<Obj_AI_Base>()
-                    .Where(x => x.IsMinion && !(new GameObjectTeam[] { Player.Team, GameObjectTeam.Neutral }.Contains(x.Team)) && x != null && x.Distance(Player.Position) <= Q.Range).ToList()
+                    .Where(
+                        x =>
+                            x.IsMinion && !(new GameObjectTeam[] {Player.Team, GameObjectTeam.Neutral}.Contains(x.Team)) &&
+                            x.Distance(Player.Position) <= Q.Range).ToList()
                     , Q.Delay, Q.Width, Q.Speed, Player.Position, Q.Range, false, SkillshotType.SkillshotLine));
                 if (farm.MinionsHit >= clearqhit)
                     Q.Cast(farm.Position);
@@ -493,7 +502,8 @@ namespace BadaoAIO.Plugin
             float x = 0;
             if ((W.IsReady() || HasACard != "none") && Q.IsReady())
             {
-                if((Player.Mana >= Q.Instance.ManaCost + W.Instance.ManaCost) || (Player.Mana >= Q.Instance.ManaCost && HasACard != "none"))
+                if ((Player.Mana >= Q.Instance.ManaCost + W.Instance.ManaCost) ||
+                    (Player.Mana >= Q.Instance.ManaCost && HasACard != "none"))
                 {
                     x = x + Qdamage + Wdamage;
                 }
@@ -516,19 +526,22 @@ namespace BadaoAIO.Plugin
             }
             if (LichBane.IsReady)
             {
-                x = x + (float)Player.CalculateDamage(target,DamageType.Magical, 0.75 * Player.BaseAttackDamage + 0.5 * Player.FlatMagicDamageMod);
+                x = x +
+                    (float)
+                        Player.CalculateDamage(target, DamageType.Magical,
+                            0.75*Player.BaseAttackDamage + 0.5*Player.FlatMagicDamageMod);
             }
             else if (TrinityForce.IsReady)
             {
-                x = x + (float)Player.CalculateDamage(target, DamageType.Magical, 2 * Player.BaseAttackDamage);
+                x = x + (float) Player.CalculateDamage(target, DamageType.Magical, 2*Player.BaseAttackDamage);
             }
             else if (IcebornGauntlet.IsReady)
             {
-                x = x + (float)Player.CalculateDamage(target, DamageType.Magical, 1.25 * Player.BaseAttackDamage);
+                x = x + (float) Player.CalculateDamage(target, DamageType.Magical, 1.25*Player.BaseAttackDamage);
             }
             else if (Sheen.IsReady)
             {
-                x = x + (float)Player.CalculateDamage(target, DamageType.Magical, 1 * Player.BaseAttackDamage);
+                x = x + (float) Player.CalculateDamage(target, DamageType.Magical, 1*Player.BaseAttackDamage);
             }
             if (LudensEcho.IsReady)
             {
@@ -539,11 +552,7 @@ namespace BadaoAIO.Plugin
         }
         private static void checkbuff()
         {
-            var temp = "";
-            foreach (var buff in Player.Buffs)
-            {
-                temp += ("( " + buff.Name + " , " + buff.Count + " )");
-            }
+            var temp = Player.Buffs.Aggregate("", (current, buff) => current + ("( " + buff.Name + " , " + buff.Count + " )"));
             Game.PrintChat(temp);
         }
     }
