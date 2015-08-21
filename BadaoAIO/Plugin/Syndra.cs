@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Reflection.Emit;
@@ -245,6 +245,11 @@ namespace BadaoAIO.Plugin
                 Bool(Combo, "Ec", "E", true);
                 Bool(Combo, "QEc", "QE", true);
                 Bool(Combo, "Rc", "R", true);
+                Separator(Combo, "Rbc", "cast R target:");
+                foreach (var hero in GameObjects.EnemyHeroes)
+                {
+                    Bool(Combo, hero.ChampionName + "c", hero.ChampionName, true);
+                }
                 MainMenu.Add(Combo);
             }
             Menu Harass = new Menu("Harass", "Harass");
@@ -293,6 +298,10 @@ namespace BadaoAIO.Plugin
             DamageIndicator.Enabled = drawhp;
             CustomDamageIndicator.Enabled = drawhp;
             Obj_AI_Base.OnLevelUp += Obj_AI_Base_OnLevelUp;
+        }
+        private static bool castRtarget(Obj_AI_Hero target)
+        {
+            return MainMenu["Combo"][target.ChampionName + "c"].GetValue<MenuBool>().Value ;
         }
         private static bool comboq { get { return MainMenu["Combo"]["Qc"].GetValue<MenuBool>().Value; } }
         private static bool combow { get { return MainMenu["Combo"]["Wc"].GetValue<MenuBool>().Value; } }
@@ -509,7 +518,7 @@ namespace BadaoAIO.Plugin
                 foreach (
                     var target in
                         GameObjects.EnemyHeroes.Where(
-                            x => x.IsValidTarget(W.Range) && !x.IsZombie && Rdamage(x)*SyndraOrb.Count > x.Health))
+                            x => castRtarget(x) && x.IsValidTarget(W.Range) && !x.IsZombie && Rdamage(x)*SyndraOrb.Count > x.Health))
                 {
                     R.Cast(target);
                     spellcount = Variables.TickCount;
@@ -544,6 +553,18 @@ namespace BadaoAIO.Plugin
                         ecount = Variables.TickCount + 100;
                     }
                 }
+                if (W.Instance.Name != "SyndraW" && harassw)
+                {
+                    var target = TargetSelector.GetTarget(W.Range, DamageType.Magical);
+                    if (target.IsValidTarget() && !target.IsZombie)
+                    {
+                        if (Wobject() != null && Variables.TickCount >= w1cast + 250)
+                        {
+                            W.UpdateSourcePosition(Wobject().Position, Player.Position);
+                            W.Cast(target);
+                        }
+                    }
+                }
                 if (W.IsReady() && Variables.TickCount >= ecount + 500 && harassw)
                 {
                     var target = TargetSelector.GetTarget(W.Range, DamageType.Magical);
@@ -551,7 +572,7 @@ namespace BadaoAIO.Plugin
                     {
                         if (W.Instance.Name != "SyndraW")
                         {
-                            if (Wobject() != null && Variables.TickCount >= w1cast + 500)
+                            if (Wobject() != null && Variables.TickCount >= w1cast + 250)
                             {
                                 W.UpdateSourcePosition(Wobject().Position, Player.Position);
                                 W.Cast(W.GetPrediction(target).UnitPosition.ToVector2());
@@ -583,7 +604,7 @@ namespace BadaoAIO.Plugin
                     var target in
                         GameObjects.EnemyHeroes.Where(
                             x =>
-                                x.IsValidTarget(W.Range) && !x.IsZombie && SyndraHalfDamage(x) < x.Health &&
+                                castRtarget(x) && x.IsValidTarget(W.Range) && !x.IsZombie && SyndraHalfDamage(x) < x.Health &&
                                 SyndraDamage(x) > x.Health))
                 {
                     R.Cast(target);
@@ -599,7 +620,7 @@ namespace BadaoAIO.Plugin
                     if (R.IsReady() && E.IsReady() && combor && comboe)
                     {
                         var target =
-                            GameObjects.EnemyHeroes.Where(x => x.IsValidTarget() && !x.IsZombie)
+                            GameObjects.EnemyHeroes.Where(x => castRtarget(x) && x.IsValidTarget() && !x.IsZombie)
                                 .OrderByDescending(x => x.Distance(Player.Position))
                                 .LastOrDefault();
                         if (target.IsValidTarget(R.Range) && !target.IsZombie)
@@ -622,8 +643,14 @@ namespace BadaoAIO.Plugin
                         var target = TargetSelector.GetTarget(Q.Range, DamageType.Magical);
                         if (target.IsValidTarget() && !target.IsZombie)
                         {
-                            Q.Cast(Q.GetPrediction(target).UnitPosition.ToVector2());
-                            ecount = Variables.TickCount + 100;
+                            var x = Q.GetPrediction(target).UnitPosition.ToVector2();
+                            Q.Cast(x);
+                            if (E.IsReady()
+                                && x.Distance(Player.Position) <= E.Range - 100 && comboe)
+                            {
+                                DelayAction.Add(250, () => E.Cast(x));
+                                ecount = Variables.TickCount + 350;
+                            }
                         }
                     }
                     if (E.IsReady() && StunAbleOrb.Any() && Variables.TickCount >= wcount + 500 && comboe)
@@ -638,6 +665,18 @@ namespace BadaoAIO.Plugin
                             ecount = Variables.TickCount + 100;
                         }
                     }
+                    if (W.Instance.Name != "SyndraW" && combow)
+                    {
+                        var target = TargetSelector.GetTarget(W.Range, DamageType.Magical);
+                        if (target.IsValidTarget() && !target.IsZombie)
+                        {
+                            if (Wobject() != null && Variables.TickCount >= w1cast + 250)
+                            {
+                                W.UpdateSourcePosition(Wobject().Position, Player.Position);
+                                W.Cast(target);
+                            }
+                        }
+                    }
                     if (W.IsReady() && Variables.TickCount >= ecount + 500 && combow)
                     {
                         var target = TargetSelector.GetTarget(W.Range, DamageType.Magical);
@@ -645,7 +684,7 @@ namespace BadaoAIO.Plugin
                         {
                             if (W.Instance.Name != "SyndraW")
                             {
-                                if (Wobject() != null && Variables.TickCount >= w1cast + 500)
+                                if (Wobject() != null && Variables.TickCount >= w1cast + 250)
                                 {
                                     W.UpdateSourcePosition(Wobject().Position,Player.Position);
                                     W.Cast(W.GetPrediction(target).UnitPosition.ToVector2());
@@ -682,12 +721,12 @@ namespace BadaoAIO.Plugin
                                 if (pos.Distance(Player.Position.ToVector2()) < E.Range - 200)
                                 {
                                     DelayAction.Add(250, () => E.Cast(pos));
-                                    ecount = Variables.TickCount + 250;
+                                    ecount = Variables.TickCount + 350;
                                 }
                                 else
                                 {
                                     DelayAction.Add(150, () => E.Cast(pos));
-                                    ecount = Variables.TickCount + 150;
+                                    ecount = Variables.TickCount + 250;
                                 }
                             }
                         }
